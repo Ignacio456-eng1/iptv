@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.iptv.data.Channel
@@ -38,7 +39,7 @@ class ScreensTest {
 
         rule.onNodeWithText("Cargar canales").assertIsNotEnabled()
         rule.onNodeWithText("URL de la lista (http://…/lista.m3u)").performTextInput("http://e.com/lista.m3u")
-        rule.onNodeWithText("Cargar canales").assertIsEnabled().performClick()
+        rule.onNodeWithText("Cargar canales").performScrollTo().assertIsEnabled().performClick()
         assertEquals(PlaylistSource.M3u("http://e.com/lista.m3u"), connected)
     }
 
@@ -50,8 +51,8 @@ class ScreensTest {
         rule.onNodeWithText("Servidor (http://host:puerto)").performTextInput("http://srv:8080")
         rule.onNodeWithText("Usuario").performTextInput("ana")
         rule.onNodeWithText("Cargar canales").assertIsNotEnabled()
-        rule.onNodeWithText("Contraseña").performTextInput("secreto")
-        rule.onNodeWithText("Cargar canales").performClick()
+        rule.onNodeWithText("Contraseña").performScrollTo().performTextInput("secreto")
+        rule.onNodeWithText("Cargar canales").performScrollTo().assertIsEnabled().performClick()
         assertEquals(PlaylistSource.Xtream("http://srv:8080", "ana", "secreto"), connected)
     }
 
