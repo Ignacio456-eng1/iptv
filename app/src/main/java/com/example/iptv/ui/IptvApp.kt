@@ -41,11 +41,28 @@ fun IptvApp(vm: IptvViewModel) {
                         onNext = { vm.zap(+1) },
                     )
                 }
-                state.source == null -> SetupScreen(
-                    loading = state.loading,
-                    error = state.error,
-                    onConnect = vm::connect,
-                )
+                state.screen == Screen.AddPlaylist || state.playlists.isEmpty() -> {
+                    val canCancel = state.playlists.isNotEmpty()
+                    if (canCancel) BackHandler { vm.back() }
+                    SetupScreen(
+                        loading = state.loading,
+                        error = state.error,
+                        onConnect = vm::addPlaylist,
+                        onCancel = if (canCancel) vm::back else null,
+                    )
+                }
+                state.screen == Screen.Playlists -> {
+                    BackHandler { vm.back() }
+                    PlaylistsScreen(
+                        playlists = state.playlists,
+                        activeId = state.activeId,
+                        onSelect = vm::selectPlaylist,
+                        onAdd = vm::showAddPlaylist,
+                        onRename = vm::renamePlaylist,
+                        onDelete = vm::deletePlaylist,
+                        onBack = vm::back,
+                    )
+                }
                 else -> ChannelsScreen(
                     state = state,
                     onSelectGroup = vm::selectGroup,
@@ -53,7 +70,7 @@ fun IptvApp(vm: IptvViewModel) {
                     onPlay = vm::play,
                     onToggleFavorite = { vm.toggleFavorite(it) },
                     onRefresh = vm::refresh,
-                    onLogout = vm::logout,
+                    onShowPlaylists = vm::showPlaylists,
                     onDismissError = vm::dismissError,
                 )
             }

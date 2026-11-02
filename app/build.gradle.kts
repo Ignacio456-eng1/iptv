@@ -12,8 +12,18 @@ android {
         applicationId = "com.example.iptv"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
+    }
+
+    // Firma fija (solo para pruebas) para que cada APK nuevo se instale encima del anterior.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("iptv-debug.keystore")
+            storePassword = "android"
+            keyAlias = "iptvdebug"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {

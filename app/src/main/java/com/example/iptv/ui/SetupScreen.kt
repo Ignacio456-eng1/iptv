@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -35,9 +36,11 @@ import com.example.iptv.data.PlaylistSource
 fun SetupScreen(
     loading: Boolean,
     error: String?,
-    onConnect: (PlaylistSource) -> Unit,
+    onConnect: (name: String, source: PlaylistSource) -> Unit,
+    onCancel: (() -> Unit)? = null,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var name by rememberSaveable { mutableStateOf("") }
     var m3uUrl by rememberSaveable { mutableStateOf("") }
     var server by rememberSaveable { mutableStateOf("") }
     var user by rememberSaveable { mutableStateOf("") }
@@ -52,10 +55,17 @@ fun SetupScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("IPTV Player", style = MaterialTheme.typography.headlineMedium)
+            Text(if (onCancel == null) "IPTV Player" else "Añadir lista", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "Añade la lista de canales que te da tu proveedor IPTV.",
+                "Añade la lista de canales que te da tu proveedor IPTV. Puedes guardar varias.",
                 style = MaterialTheme.typography.bodyMedium,
+            )
+
+            OutlinedTextField(
+                value = name, onValueChange = { name = it },
+                label = { Text("Nombre de la lista (opcional)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
             )
 
             TabRow(selectedTabIndex = tab) {
@@ -102,6 +112,7 @@ fun SetupScreen(
                 enabled = canConnect,
                 onClick = {
                     onConnect(
+                        name,
                         if (tab == 0) PlaylistSource.M3u(m3uUrl.trim())
                         else PlaylistSource.Xtream(server.trim(), user.trim(), pass)
                     )
@@ -110,6 +121,10 @@ fun SetupScreen(
             ) {
                 if (loading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 else Text("Cargar canales")
+            }
+
+            if (onCancel != null) {
+                OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancelar") }
             }
 
             Text(

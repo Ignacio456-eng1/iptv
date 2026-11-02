@@ -9,10 +9,10 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-/** Descarga la lista, la cachea en disco y la convierte en canales. */
+/** Descarga las listas, guarda una copia en disco por lista y las convierte en canales. */
 class PlaylistRepository(context: Context) {
 
-    private val cacheFile = File(context.filesDir, "playlist.m3u")
+    private val dir = context.filesDir
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -20,12 +20,22 @@ class PlaylistRepository(context: Context) {
         .followRedirects(true)
         .build()
 
-    /** Lista cacheada de la última descarga correcta (para arrancar rápido o sin red). */
-    suspend fun cached(): List<Channel> = withContext(Dispatchers.IO) {
-        if (cacheFile.exists()) M3uParser.parse(cacheFile.readText()) else emptyList()
+    private fun cacheFile(id: String): File {
+        val file = File(dir, "playlist_${id.filter { it.isLetterOrDigit() || it == '-' }}.m3u")
+        // Copia de la versión 0.1, que solo guardaba una lista.
+        val legacy = File(dir, "playlist.m3u")
+        if (id == SettingsStore.LEGACY_ID && !file.exists() && legacy.exists()) legacy.renameTo(file)
+        return file
     }
 
-    suspend fun load(source: PlaylistSource): List<Channel> = withContext(Dispatchers.IO) {
+    /** Canales de la última descarga correcta de esa lista (para arrancar rápido o sin red). */
+    suspend fun cached(id: String): List<Channel> = withContext(Dispatchers.IO) {
+        val file = cacheFile(id)
+        if (file.exists()) M3uParser.parse(file.readText()) else emptyList()
+    }
+
+    /** Descarga la lista, la valida y, si tiene canales, guarda la copia con ese id. */
+    suspend fun load(id: String, source: PlaylistSource): List<Channel> = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url(source.playlistUrl())
             .header("User-Agent", USER_AGENT)
@@ -36,13 +46,13 @@ class PlaylistRepository(context: Context) {
         }
         val channels = M3uParser.parse(text)
         if (channels.isEmpty()) throw IOException("La lista no contiene canales válidos")
-        cacheFile.writeText(text)
+        cacheFile(id).writeText(text)
         channels
     }
 
-    fun clearCache() { cacheFile.delete() }
+    fun clearCache(id: String) { cacheFile(id).delete() }
 
     companion object {
-        const val USER_AGENT = "IptvPlayer/0.1 (Android)"
+        const val USER_AGENT = "IptvPlayer/0.2 (Android)"
     }
 }

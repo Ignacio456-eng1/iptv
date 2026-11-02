@@ -33,23 +33,24 @@ class PlaylistRepositoryTest {
     @Before fun setUp() {
         server.start()
         repo = PlaylistRepository(ApplicationProvider.getApplicationContext())
-        repo.clearCache()
+        repo.clearCache("a")
     }
 
     @After fun tearDown() = server.shutdown()
 
     @Test fun downloadsParsesAndCaches() = runTest {
         server.enqueue(MockResponse().setBody(playlist))
-        val channels = repo.load(PlaylistSource.M3u(server.url("/lista.m3u").toString()))
+        val channels = repo.load("a", PlaylistSource.M3u(server.url("/lista.m3u").toString()))
         assertEquals(listOf("Canal 1", "Canal 2"), channels.map { it.name })
-        assertEquals(2, repo.cached().size)
+        assertEquals(2, repo.cached("a").size)
+        assertEquals(0, repo.cached("otra").size)
         assertTrue(server.takeRequest().getHeader("User-Agent")!!.startsWith("IptvPlayer"))
     }
 
     @Test fun xtreamRequestsGetPhp() = runTest {
         server.enqueue(MockResponse().setBody(playlist))
         val base = server.url("/").toString()
-        repo.load(PlaylistSource.Xtream(base, "ana", "secreto"))
+        repo.load("a", PlaylistSource.Xtream(base, "ana", "secreto"))
         val path = server.takeRequest().path!!
         assertEquals("/get.php?username=ana&password=secreto&type=m3u_plus&output=ts", path)
     }
@@ -57,7 +58,7 @@ class PlaylistRepositoryTest {
     @Test fun httpErrorIsReported() = runTest {
         server.enqueue(MockResponse().setResponseCode(401))
         try {
-            repo.load(PlaylistSource.M3u(server.url("/x.m3u").toString()))
+            repo.load("a", PlaylistSource.M3u(server.url("/x.m3u").toString()))
             fail("debería fallar")
         } catch (e: IOException) {
             assertTrue(e.message!!.contains("401"))
@@ -67,7 +68,7 @@ class PlaylistRepositoryTest {
     @Test fun emptyPlaylistIsAnError() = runTest {
         server.enqueue(MockResponse().setBody("#EXTM3U\n"))
         try {
-            repo.load(PlaylistSource.M3u(server.url("/vacia.m3u").toString()))
+            repo.load("a", PlaylistSource.M3u(server.url("/vacia.m3u").toString()))
             fail("debería fallar")
         } catch (e: IOException) {
             assertTrue(e.message!!.contains("no contiene canales"))
