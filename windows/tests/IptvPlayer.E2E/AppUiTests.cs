@@ -184,10 +184,13 @@ public sealed class AppUiTests : IDisposable
         groups.Select("Todos");
         WaitChannels(main, "Mux HLS", "Apple TS", "Canal roto");
 
-        // 3. Reproducir con un clic: se ve el vídeo (estado con la resolución).
+        // 3. Reproducir con el teclado (seleccionar + Intro): se ve el vídeo (estado con la resolución).
         main.SetForeground();
         var list = ById(main, "ChannelList").AsListBox();
-        list.Items.First(i => i.Name == "Mux HLS").Click();
+        var first = list.Items.First(i => i.Name == "Mux HLS");
+        first.Select();
+        first.Focus();
+        Keyboard.Type(VirtualKeyShort.ENTER);
         WaitPlaying(main, "Mux HLS");
         Thread.Sleep(2000);
         Shot(main, "02-reproduciendo");
@@ -218,6 +221,12 @@ public sealed class AppUiTests : IDisposable
         main.SetForeground();
         Keyboard.Type(VirtualKeyShort.ESCAPE);
         WaitUntil(() => !ById(main, "ChannelList").IsOffscreen, Short, "que vuelva la lista al salir con Esc");
+
+        // 6b. Reproducir con un clic de ratón.
+        main.SetForeground();
+        Thread.Sleep(500);
+        ById(main, "ChannelList").AsListBox().Items.First(i => i.Name == "Mux HLS").Click();
+        WaitPlaying(main, "Mux HLS");
 
         // 7. Segunda lista con Xtream Codes (primero con contraseña mala).
         ById(main, "AddPlaylistButton").AsButton().Invoke();
