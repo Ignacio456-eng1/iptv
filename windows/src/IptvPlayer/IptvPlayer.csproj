@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>IptvPlayer</AssemblyName>
+    <RootNamespace>IptvPlayer</RootNamespace>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.2.0</Version>
+    <Product>IPTV Player</Product>
+    <Company>IPTV Player</Company>
+    <Description>Reproductor IPTV para listas M3U y Xtream Codes</Description>
+    <!-- ThemeMode (tema Fluent de Windows 11) todavía se marca como experimental. -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- Solo se copia libVLC de 64 bits. -->
+    <VlcWindowsX64Enabled>true</VlcWindowsX64Enabled>
+    <VlcWindowsX86Enabled>false</VlcWindowsX86Enabled>
+    <VlcWindowsArm64Enabled>false</VlcWindowsArm64Enabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Módulos de VLC que no hacen falta para reproducir (interfaz Qt, emisión/grabación). -->
+    <VlcWindowsX64ExcludeFiles Include="plugins\gui\%2A%2A;plugins\stream_out\%2A%2A;plugins\access_output\%2A%2A;plugins\mux\%2A%2A" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibVLCSharp.WPF" Version="3.9.7.1" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.24" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IptvPlayer.Core\IptvPlayer.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+
+</Project>

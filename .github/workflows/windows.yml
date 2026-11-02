@@ -1,0 +1,105 @@
+name: Build Windows
+
+on:
+  push:
+    paths:
+      - 'windows/**'
+      - '.github/workflows/windows.yml'
+  pull_request:
+    paths:
+      - 'windows/**'
+      - '.github/workflows/windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  APP_VERSION: 0.2.0
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Tests de la lógica (listas, Xtream, favoritos, caché)
+        run: dotnet test tests/IptvPlayer.Core.Tests -c Release --logger "console;verbosity=normal"
+
+      - name: Publicar la aplicación (autocontenida, no necesita instalar .NET)
+        run: >
+          dotnet publish src/IptvPlayer/IptvPlayer.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=$env:APP_VERSION
+          -o out/app
+
+      - name: Crear el instalador (Inno Setup)
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+          & $iscc "/DAppVersion=$env:APP_VERSION" "/DSourceDir=$PWD\out\app" "/DOutDir=$PWD\out" installer\IptvPlayer.iss
+          if ($LASTEXITCODE -ne 0) { throw "Falló Inno Setup" }
+          Get-Item out\IptvPlayer-Setup.exe | Format-List Name, Length
+
+      - name: Instalar en silencio
+        run: |
+          $p = Start-Process out\IptvPlayer-Setup.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/CURRENTUSER','/NORESTART','/DIR=C:\IptvPlayerTest','/LOG=C:\IptvPlayerTest-install.log' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content C:\IptvPlayerTest-install.log; throw "El instalador terminó con código $($p.ExitCode)" }
+          if (-not (Test-Path C:\IptvPlayerTest\IptvPlayer.exe)) { throw "No se instaló IptvPlayer.exe" }
+          if (-not (Test-Path C:\IptvPlayerTest\libvlc\win-x64\libvlc.dll)) { throw "Falta libVLC" }
+
+      - name: Pruebas en Windows (reproducción real y la aplicación instalada manejada de principio a fin)
+        env:
+          IPTV_EXE: C:\IptvPlayerTest\IptvPlayer.exe
+          E2E_ARTIFACTS: ${{ github.workspace }}\windows\out\capturas
+        run: dotnet test tests/IptvPlayer.E2E -c Release --logger "console;verbosity=detailed"
+
+      - name: Registro de errores de la aplicación
+        if: failure()
+        run: Get-ChildItem $env:TEMP -Recurse -Filter error.log -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName; Get-Content $_ }
+
+      - name: Desinstalar
+        run: |
+          $p = Start-Process C:\IptvPlayerTest\unins000.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES' -Wait -PassThru
+          Write-Host "Desinstalador: código $($p.ExitCode)"
+
+      - name: Versión portable (zip)
+        run: Compress-Archive -Path out\app\* -DestinationPath out\IptvPlayer-portable-win-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iptv-player-windows
+          path: |
+            windows/out/IptvPlayer-Setup.exe
+            windows/out/IptvPlayer-portable-win-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capturas-pruebas
+          path: windows/out/capturas
+          if-no-files-found: ignore
+
+      - name: Publicar en Releases
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete windows -y --cleanup-tag || true
+          gh release create windows out/IptvPlayer-Setup.exe out/IptvPlayer-portable-win-x64.zip \
+            --title "IPTV Player para Windows" --latest=false \
+            --notes "Instalador para Windows 10/11 (64 bits), compilado y probado automáticamente desde main (commit ${GITHUB_SHA::7}). Descarga IptvPlayer-Setup.exe y ábrelo; si Windows muestra 'Windows protegió su PC', pulsa 'Más información' > 'Ejecutar de todas formas'."
