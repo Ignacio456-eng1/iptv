@@ -209,6 +209,8 @@ public partial class MainWindow : Window
     private void StartPlayback(Channel? channel)
     {
         _playbackFailed = false;
+        _videoSize = null;
+        Interlocked.Increment(ref _sizeRequests);
         if (channel == null)
         {
             EnqueuePlayer(() => _player.Stop());
@@ -238,56 +240,99 @@ public partial class MainWindow : Window
         SelectPlayingInList(scroll: true);
     }
 
+    // Estado del reproductor según sus eventos. La interfaz nunca llama a VLC de forma síncrona: si el hilo de la
+    // interfaz espera a VLC mientras la salida de vídeo espera a la ventana, la aplicación se queda bloqueada.
+    private volatile VLCState _state = VLCState.NothingSpecial;
+    private volatile bool _muted;
+    private string? _videoSize;
+    private int _sizeRequests;
+
     private void HookPlayerEvents()
     {
         // Los eventos llegan desde hilos de VLC: se pasan al hilo de la interfaz y nunca se llama a VLC desde ellos.
-        _player.Playing += (_, _) => Ui(() =>
+        _player.Opening += (_, _) => _state = VLCState.Opening;
+        _player.Playing += (_, _) =>
         {
-            _playbackFailed = false;
-            PlayPauseButton.Content = IconPause;
-            SetStatus(VideoSizeText() is { } size ? $"Reproduciendo · {size}" : "Reproduciendo");
-            UpdatePlaceholder();
-        });
-        _player.Vout += (_, e) => Ui(() =>
-        {
-            if (e.Count > 0 && _player.State == VLCState.Playing && VideoSizeText() is { } size)
-                SetStatus($"Reproduciendo · {size}");
-        });
+            _state = VLCState.Playing;
+            Ui(() =>
+            {
+                _playbackFailed = false;
+                PlayPauseButton.Content = IconPause;
+                ShowPlayingStatus();
+                UpdatePlaceholder();
+            });
+            RequestVideoSize();
+        };
+        _player.Vout += (_, e) => { if (e.Count > 0) RequestVideoSize(); };
         _player.Buffering += (_, e) => Ui(() =>
         {
             if (e.Cache < 100f && _vm.Playing != null) SetStatus($"Cargando… {e.Cache:0}%");
-            else if (_player.State == VLCState.Playing)
-                SetStatus(VideoSizeText() is { } size ? $"Reproduciendo · {size}" : "Reproduciendo");
+            else if (_state == VLCState.Playing) ShowPlayingStatus();
         });
-        _player.Paused += (_, _) => Ui(() => { SetStatus("En pausa"); PlayPauseButton.Content = IconPlay; });
-        _player.EncounteredError += (_, _) => Ui(() =>
+        _player.Paused += (_, _) =>
         {
-            _playbackFailed = true;
-            SetStatus("Error: no se pudo reproducir este canal");
-            PlayPauseButton.Content = IconPlay;
-            UpdatePlaceholder();
-        });
-        _player.EndReached += (_, _) => Ui(() =>
+            _state = VLCState.Paused;
+            Ui(() => { SetStatus("En pausa"); PlayPauseButton.Content = IconPlay; });
+        };
+        _player.EncounteredError += (_, _) =>
         {
-            SetStatus("La emisión se ha cortado. Pulsa ▶ para reintentar.");
-            PlayPauseButton.Content = IconPlay;
-        });
-        _player.Stopped += (_, _) => Ui(() =>
+            _state = VLCState.Error;
+            Ui(() =>
+            {
+                _playbackFailed = true;
+                SetStatus("Error: no se pudo reproducir este canal");
+                PlayPauseButton.Content = IconPlay;
+                UpdatePlaceholder();
+            });
+        };
+        _player.EndReached += (_, _) =>
         {
-            if (_vm.Playing == null) SetStatus("");
-            PlayPauseButton.Content = IconPlay;
-        });
+            _state = VLCState.Ended;
+            Ui(() =>
+            {
+                SetStatus("La emisión se ha cortado. Pulsa ▶ para reintentar.");
+                PlayPauseButton.Content = IconPlay;
+            });
+        };
+        _player.Stopped += (_, _) =>
+        {
+            _state = VLCState.Stopped;
+            Ui(() =>
+            {
+                if (_vm.Playing == null) SetStatus("");
+                PlayPauseButton.Content = IconPlay;
+            });
+        };
     }
 
-    private string? VideoSizeText()
+    private void ShowPlayingStatus() =>
+        SetStatus(_videoSize is { } size ? $"Reproduciendo · {size}" : "Reproduciendo");
+
+    /// <summary>Pregunta a VLC la resolución en un hilo aparte (nunca desde sus eventos ni desde la interfaz).</summary>
+    private void RequestVideoSize()
     {
-        uint w = 0, h = 0;
-        try
+        var request = Interlocked.Increment(ref _sizeRequests);
+        Task.Run(async () =>
         {
-            if (_player.Size(0, ref w, ref h) && w > 0 && h > 0) return $"{w}×{h}";
-        }
-        catch (Exception) { }
-        return null;
+            for (var i = 0; i < 20 && request == _sizeRequests; i++)
+            {
+                uint w = 0, h = 0;
+                bool ok;
+                try { ok = _player.Size(0, ref w, ref h) && w > 0 && h > 0; }
+                catch (Exception) { ok = false; }
+                if (ok)
+                {
+                    Ui(() =>
+                    {
+                        if (request != _sizeRequests) return;
+                        _videoSize = $"{w}×{h}";
+                        if (_state == VLCState.Playing) ShowPlayingStatus();
+                    });
+                    return;
+                }
+                await Task.Delay(250);
+            }
+        });
     }
 
     private void Ui(Action action) => Dispatcher.BeginInvoke(action);
@@ -297,7 +342,7 @@ public partial class MainWindow : Window
     private void TogglePause()
     {
         if (_vm.Playing == null) return;
-        var state = _player.State;
+        var state = _state;
         if (state == VLCState.Playing || state == VLCState.Buffering || state == VLCState.Opening)
             EnqueuePlayer(() => _player.SetPause(true));
         else if (state == VLCState.Paused)
@@ -308,9 +353,11 @@ public partial class MainWindow : Window
 
     private void ToggleMute()
     {
-        _player.Mute = !_player.Mute;
-        MuteButton.Content = _player.Mute ? IconMuted : IconVolume;
-        ShowOsd(_player.Mute ? "Silenciado" : $"Volumen {(int)VolumeSlider.Value}%");
+        _muted = !_muted;
+        var muted = _muted;
+        Task.Run(() => { try { _player.Mute = muted; } catch (Exception) { } });
+        MuteButton.Content = muted ? IconMuted : IconVolume;
+        ShowOsd(muted ? "Silenciado" : $"Volumen {(int)VolumeSlider.Value}%");
     }
 
     // ---------- Pantalla completa ----------
@@ -495,31 +542,48 @@ public partial class MainWindow : Window
     private void OnVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_player == null) return; // durante InitializeComponent
-        _player.Volume = (int)e.NewValue;
-        if (_player.Mute && e.NewValue > 0) { _player.Mute = false; MuteButton.Content = IconVolume; }
+        var volume = (int)e.NewValue;
+        var unmute = _muted && volume > 0;
+        if (unmute) { _muted = false; MuteButton.Content = IconVolume; }
+        Task.Run(() =>
+        {
+            try { _player.Volume = volume; if (unmute) _player.Mute = false; } catch (Exception) { }
+        });
     }
 
-    private void OnTracks(object sender, RoutedEventArgs e)
+    private async void OnTracks(object sender, RoutedEventArgs e)
     {
+        // Las pistas se leen en segundo plano para no bloquear la interfaz.
+        var info = await Task.Run(() =>
+        {
+            try
+            {
+                return (Audio: _player.AudioTrackDescription.Select(t => (t.Id, t.Name)).ToList(), AudioId: _player.AudioTrack,
+                        Subs: _player.SpuDescription.Select(t => (t.Id, t.Name)).ToList(), SubId: _player.Spu);
+            }
+            catch (Exception)
+            {
+                return (Audio: new List<(int, string)>(), AudioId: -1, Subs: new List<(int, string)>(), SubId: -1);
+            }
+        });
+
         var menu = new ContextMenu { PlacementTarget = TracksButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
 
         var audio = new MenuItem { Header = "Audio" };
-        foreach (var t in _player.AudioTrackDescription)
+        foreach (var (id, name) in info.Audio)
         {
-            var id = t.Id;
-            var item = new MenuItem { Header = t.Name, IsCheckable = true, IsChecked = _player.AudioTrack == id };
-            item.Click += (_, _) => _player.SetAudioTrack(id);
+            var item = new MenuItem { Header = name, IsCheckable = true, IsChecked = info.AudioId == id };
+            item.Click += (_, _) => EnqueuePlayer(() => _player.SetAudioTrack(id));
             audio.Items.Add(item);
         }
         audio.IsEnabled = audio.Items.Count > 0;
         menu.Items.Add(audio);
 
         var subs = new MenuItem { Header = "Subtítulos" };
-        foreach (var t in _player.SpuDescription)
+        foreach (var (id, name) in info.Subs)
         {
-            var id = t.Id;
-            var item = new MenuItem { Header = t.Name, IsCheckable = true, IsChecked = _player.Spu == id };
-            item.Click += (_, _) => _player.SetSpu(id);
+            var item = new MenuItem { Header = name, IsCheckable = true, IsChecked = info.SubId == id };
+            item.Click += (_, _) => EnqueuePlayer(() => _player.SetSpu(id));
             subs.Items.Add(item);
         }
         subs.IsEnabled = subs.Items.Count > 0;
@@ -541,17 +605,15 @@ public partial class MainWindow : Window
     private void SetAspect(string? value)
     {
         CurrentAspect = value;
+        var ratio = value;
         if (value == "fill")
         {
             var size = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
             var w = (int)(VideoView.ActualWidth * size.M11);
             var h = (int)(VideoView.ActualHeight * size.M22);
-            _player.AspectRatio = w > 0 && h > 0 ? $"{w}:{h}" : null;
+            ratio = w > 0 && h > 0 ? $"{w}:{h}" : null;
         }
-        else
-        {
-            _player.AspectRatio = value;
-        }
+        EnqueuePlayer(() => _player.AspectRatio = ratio);
     }
 
     private static T? FindAncestor<T>(DependencyObject? d) where T : DependencyObject
