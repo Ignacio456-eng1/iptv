@@ -64,7 +64,7 @@ public partial class MainWindow : Window
             // La capa sobre el vídeo vive en su propia ventana: también ahí funcionan los atajos.
             if (GetWindow(Overlay) is { } w && !ReferenceEquals(w, this)) w.PreviewKeyDown += OnPreviewKeyDown;
         };
-        Closed += OnClosed;
+        Closing += OnClosing;
 
         SyncPlaylistCombo();
         UpdateCount();
@@ -82,19 +82,32 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnClosed(object? sender, EventArgs e)
+    private bool _readyToClose;
+
+    /// <summary>
+    /// VLC se detiene antes de destruir la ventana y en segundo plano: si se detiene desde el hilo de la
+    /// interfaz con la ventana ya cerrada, la salida de vídeo espera a ese mismo hilo y la aplicación se cuelga.
+    /// </summary>
+    private async void OnClosing(object? sender, CancelEventArgs e)
     {
-        try
+        if (_readyToClose) return;
+        e.Cancel = true;
+        Hide();
+        var stop = _playerQueue.ContinueWith(_ =>
         {
-            _playerQueue.Wait(TimeSpan.FromSeconds(3));
-            _player.Stop();
-            _player.Dispose();
-            _libVlc.Dispose();
-        }
-        catch (Exception)
+            try { _player.Stop(); } catch (Exception) { }
+        }, TaskScheduler.Default);
+        await Task.WhenAny(stop, Task.Delay(TimeSpan.FromSeconds(5)));
+        if (stop.IsCompleted)
         {
-            // Al cerrar no importa.
+            VideoView.MediaPlayer = null;
+            await Task.WhenAny(Task.Run(() =>
+            {
+                try { _player.Dispose(); _libVlc.Dispose(); } catch (Exception) { }
+            }), Task.Delay(TimeSpan.FromSeconds(3)));
         }
+        _readyToClose = true;
+        Close();
     }
 
     // ---------- Estado → interfaz ----------
