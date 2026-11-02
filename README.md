@@ -1,4 +1,6 @@
-# IPTV Player (Android / Android TV)
+# IPTV Player (Android / Android TV / Windows)
+
+> **Windows 10/11:** hay una versión de escritorio en [`windows/`](windows/README.md) con instalador `.exe` en Releases.
 
 Reproductor IPTV para Android y Android TV. **No incluye canales**: el usuario añade su propia lista
 (la que le da su proveedor IPTV o una lista pública y legal).
