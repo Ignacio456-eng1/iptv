@@ -5,6 +5,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,3 +24,11 @@ jobs:
         with:
           name: iptv-player-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+      - name: Publicar APK en Releases
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk iptv-player.apk
+          gh release delete latest -y --cleanup-tag || true
+          gh release create latest iptv-player.apk --title "IPTV Player (última versión)" --notes "APK compilado y probado automáticamente desde main (commit ${GITHUB_SHA::7})." --latest
