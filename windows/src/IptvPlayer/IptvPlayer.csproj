@@ -26,7 +26,7 @@
 
   <ItemGroup>
     <!-- Módulos de VLC que no hacen falta para reproducir (interfaz Qt, emisión/grabación). -->
-    <VlcWindowsX64ExcludeFiles Include="plugins\gui\%2A%2A;plugins\stream_out\%2A%2A;plugins\access_output\%2A%2A;plugins\mux\%2A%2A" />
+    <VlcWindowsX64ExcludeFiles Include="libvlc.lib;libvlccore.lib;plugins\gui\%2A%2A;plugins\stream_out\%2A%2A;plugins\access_output\%2A%2A;plugins\mux\%2A%2A" />
   </ItemGroup>
 
   <ItemGroup>

@@ -31,7 +31,7 @@ C# · .NET 10 · WPF con el tema Fluent de Windows 11 · LibVLCSharp + libVLC 3 
 ## Compilar
 ```
 dotnet test tests/IptvPlayer.Core.Tests          # lógica (también en Linux/macOS)
-dotnet publish src/IptvPlayer -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o out/app
+dotnet publish src/IptvPlayer -c Release -r win-x64 --self-contained true -o out/app
 ```
 Las pruebas de `tests/IptvPlayer.E2E` solo funcionan en Windows: reproducen emisiones de prueba reales con libVLC
 y manejan la aplicación instalada con UI Automation (añadir listas, buscar, favoritos, reproducir, pantalla
