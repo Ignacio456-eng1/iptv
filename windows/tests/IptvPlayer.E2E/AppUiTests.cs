@@ -88,8 +88,16 @@ public sealed class AppUiTests : IDisposable
 
     private void CloseApp(Window main)
     {
-        main.Close();
+        // Cierre normal de la ventana (WM_CLOSE, como el botón X). Si no surtiera efecto, Alt+F4.
+        main.Patterns.Window.Pattern.Close();
         var sw = Stopwatch.StartNew();
+        while (!_app!.HasExited && sw.Elapsed < TimeSpan.FromSeconds(5)) Thread.Sleep(200);
+        if (!_app.HasExited && !File.ReadAllText(Path.Combine(_dataDir, "app.log")).Contains("Cerrando"))
+        {
+            _out.WriteLine("WindowPattern.Close no cerró la ventana; se usa Alt+F4");
+            main.SetForeground();
+            Keyboard.TypeSimultaneously(VirtualKeyShort.ALT, VirtualKeyShort.F4);
+        }
         while (!_app!.HasExited && sw.Elapsed < TimeSpan.FromSeconds(20)) Thread.Sleep(200);
         var log = Path.Combine(_dataDir, "app.log");
         if (File.Exists(log)) _out.WriteLine("app.log:\n" + File.ReadAllText(log));
