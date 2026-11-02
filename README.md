@@ -5,12 +5,14 @@ Reproductor IPTV para Android y Android TV. **No incluye canales**: el usuario a
 
 ## Qué hace
 - Carga listas **M3U / M3U8** por URL o con credenciales **Xtream Codes** (servidor, usuario, contraseña).
+- Guarda **varias listas** con nombre: en "Mis listas" puedes cambiar de una a otra, renombrarlas y borrarlas.
 - Lista de canales con logos, **grupos**, **búsqueda** y **favoritos**.
 - Reproducción con **Media3 / ExoPlayer**: HLS, DASH, MPEG‑TS y progresivo.
 - Respeta `#EXTVLCOPT:http-user-agent`, `http-referrer` y cabeceras estilo Kodi (`url|User-Agent=…`).
 - Android TV: aparece en el launcher de la tele, navegación con mando (D‑pad) y **CH+/CH‑** para cambiar de canal.
   En el reproductor, los botones anterior/siguiente también cambian de canal.
-- Guarda la última lista en caché para arrancar rápido.
+- Guarda una copia de cada lista para arrancar rápido.
+- El APK de pruebas se firma siempre con la misma clave (`app/iptv-debug.keystore`), así que las versiones nuevas se instalan encima.
 
 ## Stack
 Kotlin · Jetpack Compose (Material 3) · Media3 ExoPlayer · OkHttp · DataStore · Coil. minSdk 23, targetSdk 35.
@@ -33,11 +35,12 @@ app/src/main/java/com/example/iptv/
   ui/IptvViewModel.kt      # estado: canales, grupos, búsqueda, reproducción
   ui/SetupScreen.kt        # pantalla para añadir la lista
   ui/ChannelsScreen.kt     # lista de canales
+  ui/PlaylistsScreen.kt    # "Mis listas"
+  data/SavedPlaylist.kt    # lista guardada + JSON
   ui/PlayerScreen.kt       # reproductor
 ```
 
 ## Siguientes pasos posibles
 - Guía de programación (EPG XMLTV).
-- Varias listas guardadas.
 - Imagen en imagen (PiP) en móvil.
 - Interfaz específica de TV con `androidx.tv` (tarjetas en cuadrícula).

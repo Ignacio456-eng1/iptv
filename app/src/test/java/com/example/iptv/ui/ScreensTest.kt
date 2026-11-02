@@ -15,6 +15,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.iptv.data.Channel
 import com.example.iptv.data.PlaylistSource
+import com.example.iptv.data.SavedPlaylist
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -35,7 +36,7 @@ class ScreensTest {
 
     @Test fun setupButtonEnabledOnlyWithUrl() {
         var connected: PlaylistSource? = null
-        rule.setContent { SetupScreen(loading = false, error = null, onConnect = { connected = it }) }
+        rule.setContent { SetupScreen(loading = false, error = null, onConnect = { _, src -> connected = src }) }
 
         rule.onNodeWithText("Cargar canales").assertIsNotEnabled()
         rule.onNodeWithText("URL de la lista (http://…/lista.m3u)").performTextInput("http://e.com/lista.m3u")
@@ -45,7 +46,7 @@ class ScreensTest {
 
     @Test fun setupXtreamNeedsAllFields() {
         var connected: PlaylistSource? = null
-        rule.setContent { SetupScreen(loading = false, error = null, onConnect = { connected = it }) }
+        rule.setContent { SetupScreen(loading = false, error = null, onConnect = { _, src -> connected = src }) }
 
         rule.onNodeWithText("Xtream Codes").performClick()
         rule.onNodeWithText("Servidor (http://host:puerto)").performTextInput("http://srv:8080")
@@ -60,7 +61,8 @@ class ScreensTest {
         var state by mutableStateOf(
             UiState(
                 ready = true,
-                source = PlaylistSource.M3u("http://e.com/lista.m3u"),
+                playlists = listOf(SavedPlaylist("p1", "Mi lista", PlaylistSource.M3u("http://e.com/lista.m3u"))),
+                activeId = "p1",
                 channels = channels,
                 groups = listOf(GROUP_ALL, GROUP_FAVORITES, "Noticias", "Deportes", "Cine"),
             )
@@ -75,11 +77,13 @@ class ScreensTest {
                 onToggleFavorite = { ch ->
                     state = state.copy(favorites = state.favorites + ch.key)
                 },
-                onRefresh = {}, onLogout = {}, onDismissError = {},
+                onRefresh = {}, onShowPlaylists = {}, onDismissError = {},
             )
         }
 
         rule.onNodeWithText("3 canales").assertExists()
+        rule.onNodeWithText("Mi lista").assertExists()
+        rule.onNodeWithText("Mis listas (1)").assertExists()
 
         // Filtro por grupo
         rule.onAllNodesWithText("Deportes")[0].performClick()

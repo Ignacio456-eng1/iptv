@@ -21,7 +21,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -57,12 +57,35 @@ fun ChannelsScreen(
     onPlay: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     onRefresh: () -> Unit,
-    onLogout: () -> Unit,
+    onShowPlaylists: () -> Unit,
     onDismissError: () -> Unit,
 ) {
     val channels = state.visibleChannels
 
     Column(Modifier.fillMaxSize()) {
+        // Lista activa: al pulsar se abre "Mis listas" para cambiar de lista.
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onShowPlaylists)
+                .padding(start = 16.dp, end = 8.dp, top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Lista", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    state.active?.name ?: "",
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            TextButton(onClick = onShowPlaylists) {
+                Icon(Icons.AutoMirrored.Filled.List, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Mis listas (${state.playlists.size})")
+            }
+        }
+
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -76,7 +99,6 @@ fun ChannelsScreen(
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, "Actualizar lista") }
-            IconButton(onClick = onLogout) { Icon(Icons.AutoMirrored.Filled.Logout, "Cambiar de lista") }
         }
 
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
