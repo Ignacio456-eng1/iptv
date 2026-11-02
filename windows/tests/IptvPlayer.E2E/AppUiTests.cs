@@ -89,6 +89,13 @@ public sealed class AppUiTests : IDisposable
     private void CloseApp(Window main)
     {
         try { FlaUI.Core.Capturing.Capture.Screen().ToFile(Path.Combine(_artifacts, $"antes-de-cerrar-{DateTime.Now:HHmmss}.png")); } catch (Exception) { }
+        try
+        {
+            var proc = Process.GetProcessById(_app!.ProcessId);
+            _out.WriteLine($"Antes de cerrar: Responding={proc.Responding} Estado={main.Patterns.Window.Pattern.WindowInteractionState.Value} " +
+                           $"Modal={string.Join(",", main.ModalWindows.Select(w => w.Title))} Estado reproductor='{Text(main, "PlayerStatus")}'");
+        }
+        catch (Exception e) { _out.WriteLine("Diagnóstico: " + e.Message); }
         // Cierre normal de la ventana (WM_CLOSE, como el botón X). Si no surtiera efecto, Alt+F4.
         main.Patterns.Window.Pattern.Close();
         var sw = Stopwatch.StartNew();
