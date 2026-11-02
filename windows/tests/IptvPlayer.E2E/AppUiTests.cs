@@ -88,6 +88,7 @@ public sealed class AppUiTests : IDisposable
 
     private void CloseApp(Window main)
     {
+        try { FlaUI.Core.Capturing.Capture.Screen().ToFile(Path.Combine(_artifacts, $"antes-de-cerrar-{DateTime.Now:HHmmss}.png")); } catch (Exception) { }
         // Cierre normal de la ventana (WM_CLOSE, como el botón X). Si no surtiera efecto, Alt+F4.
         main.Patterns.Window.Pattern.Close();
         var sw = Stopwatch.StartNew();
@@ -101,6 +102,9 @@ public sealed class AppUiTests : IDisposable
         while (!_app!.HasExited && sw.Elapsed < TimeSpan.FromSeconds(20)) Thread.Sleep(200);
         var log = Path.Combine(_dataDir, "app.log");
         if (File.Exists(log)) _out.WriteLine("app.log:\n" + File.ReadAllText(log));
+        var errors = Path.Combine(_dataDir, "error.log");
+        if (File.Exists(errors)) _out.WriteLine("error.log:\n" + File.ReadAllText(errors));
+        Assert.False(File.Exists(errors), "La aplicación registró errores (ver error.log arriba)");
         Assert.True(_app.HasExited, "La aplicación no se cerró en 20 s");
         Assert.DoesNotContain("Salida forzada", File.ReadAllText(log));
         _app.Dispose();
