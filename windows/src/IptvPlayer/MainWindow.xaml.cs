@@ -59,6 +59,15 @@ public partial class MainWindow : Window
         _osdTimer.Tick += (_, _) => { _osdTimer.Stop(); OsdBox.Visibility = Visibility.Collapsed; };
 
         Loaded += OnLoaded;
+        SourceInitialized += (_, _) =>
+        {
+            if (PresentationSource.FromVisual(this) is System.Windows.Interop.HwndSource source)
+                source.AddHook((IntPtr hwnd, int msg, IntPtr w, IntPtr l, ref bool handled) =>
+                {
+                    if (msg == 0x0010) App.Log("WM_CLOSE recibido"); // WM_CLOSE
+                    return IntPtr.Zero;
+                });
+        };
         Overlay.Loaded += (_, _) =>
         {
             // La capa sobre el vídeo vive en su propia ventana: también ahí funcionan los atajos.

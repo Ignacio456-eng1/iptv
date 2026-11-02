@@ -96,6 +96,13 @@ public sealed class AppUiTests : IDisposable
                            $"Modal={string.Join(",", main.ModalWindows.Select(w => w.Title))} Estado reproductor='{Text(main, "PlayerStatus")}'");
         }
         catch (Exception e) { _out.WriteLine("Diagnóstico: " + e.Message); }
+        // Cierra cualquier desplegable que haya quedado abierto.
+        foreach (var id in new[] { "PlaylistCombo", "GroupCombo" })
+        {
+            var c = main.FindFirstDescendant(cf => cf.ByAutomationId(id))?.AsComboBox();
+            try { if (c?.ExpandCollapseState == FlaUI.Core.Definitions.ExpandCollapseState.Expanded) c.Collapse(); } catch (Exception) { }
+        }
+        Thread.Sleep(500);
         // Cierre normal de la ventana (WM_CLOSE, como el botón X). Si no surtiera efecto, Alt+F4.
         main.Patterns.Window.Pattern.Close();
         var sw = Stopwatch.StartNew();
