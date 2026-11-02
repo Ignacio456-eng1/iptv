@@ -121,6 +121,10 @@ public sealed class AppUiTests : IDisposable
     private static string[] ChannelNames(Window main) =>
         ById(main, "ChannelList").AsListBox().Items.Select(i => i.Name).ToArray();
 
+    /// <summary>Los elementos ocultos (Collapsed) desaparecen del árbol de UI Automation.</summary>
+    private static bool IsShown(Window main, string id) =>
+        main.FindFirstDescendant(cf => cf.ByAutomationId(id)) is { IsOffscreen: false };
+
     private static string Text(Window main, string id) => ById(main, id).Name ?? "";
 
     private static void SetText(AutomationElement root, string id, string value)
@@ -215,12 +219,12 @@ public sealed class AppUiTests : IDisposable
 
         // 6. Pantalla completa y salir con Esc.
         ById(main, "FullscreenButton").AsButton().Invoke();
-        WaitUntil(() => ById(main, "ChannelList").IsOffscreen, Short, "que se oculte la lista en pantalla completa");
+        WaitUntil(() => !IsShown(main, "ChannelList"), Short, "que se oculte la lista en pantalla completa");
         Thread.Sleep(1500);
         Shot(main, "04-pantalla-completa");
         main.SetForeground();
         Keyboard.Type(VirtualKeyShort.ESCAPE);
-        WaitUntil(() => !ById(main, "ChannelList").IsOffscreen, Short, "que vuelva la lista al salir con Esc");
+        WaitUntil(() => IsShown(main, "ChannelList"), Short, "que vuelva la lista al salir con Esc");
 
         // 6b. Reproducir con un clic de ratón.
         main.SetForeground();
