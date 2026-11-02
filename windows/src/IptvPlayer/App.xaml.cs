@@ -20,8 +20,29 @@ public partial class App : Application
             ? Path.Combine(custom, "cache")
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IptvPlayer", "cache");
 
+    /// <summary>Registro breve de arranque/cierre (app.log en la carpeta de datos) para diagnosticar problemas.</summary>
+    public static void Log(string message)
+    {
+        try
+        {
+            Directory.CreateDirectory(DataDir);
+            File.AppendAllText(Path.Combine(DataDir, "app.log"), $"{DateTime.Now:HH:mm:ss.fff} {message}\n");
+        }
+        catch (IOException) { }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        Log("Salida");
+        base.OnExit(e);
+        // Si algún hilo nativo de VLC impidiera terminar, se fuerza la salida tras 3 s.
+        var code = e.ApplicationExitCode;
+        new Thread(() => { Thread.Sleep(3000); Log("Salida forzada"); Environment.Exit(code); }) { IsBackground = true }.Start();
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        Log("Inicio");
         base.OnStartup(e);
         DispatcherUnhandledException += OnUnhandled;
 

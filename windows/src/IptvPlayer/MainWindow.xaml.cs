@@ -92,12 +92,14 @@ public partial class MainWindow : Window
     {
         if (_readyToClose) return;
         e.Cancel = true;
+        App.Log("Cerrando: deteniendo VLC");
         Hide();
         var stop = _playerQueue.ContinueWith(_ =>
         {
             try { _player.Stop(); } catch (Exception) { }
         }, TaskScheduler.Default);
         await Task.WhenAny(stop, Task.Delay(TimeSpan.FromSeconds(5)));
+        App.Log(stop.IsCompleted ? "VLC detenido" : "VLC no se detuvo en 5 s");
         if (stop.IsCompleted)
         {
             VideoView.MediaPlayer = null;
@@ -106,6 +108,7 @@ public partial class MainWindow : Window
                 try { _player.Dispose(); _libVlc.Dispose(); } catch (Exception) { }
             }), Task.Delay(TimeSpan.FromSeconds(3)));
         }
+        App.Log("Cerrando ventana");
         _readyToClose = true;
         Close();
     }

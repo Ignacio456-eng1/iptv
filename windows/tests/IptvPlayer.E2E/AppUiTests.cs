@@ -91,7 +91,10 @@ public sealed class AppUiTests : IDisposable
         main.Close();
         var sw = Stopwatch.StartNew();
         while (!_app!.HasExited && sw.Elapsed < TimeSpan.FromSeconds(20)) Thread.Sleep(200);
+        var log = Path.Combine(_dataDir, "app.log");
+        if (File.Exists(log)) _out.WriteLine("app.log:\n" + File.ReadAllText(log));
         Assert.True(_app.HasExited, "La aplicación no se cerró en 20 s");
+        Assert.DoesNotContain("Salida forzada", File.ReadAllText(log));
         _app.Dispose();
         _app = null;
     }
