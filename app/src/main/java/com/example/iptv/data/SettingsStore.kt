@@ -19,6 +19,8 @@ class SettingsStore(private val context: Context) {
         val playlists = stringPreferencesKey("playlists")
         val activeId = stringPreferencesKey("active_playlist")
         val favorites = stringSetPreferencesKey("favorites")
+        /** Canales vistos hace poco, el más reciente primero, separados por saltos de línea. */
+        val recent = stringPreferencesKey("recent_channels")
 
         // Versión 0.1: solo había una lista. Se migra automáticamente.
         val legacyType = stringPreferencesKey("source_type")
@@ -37,6 +39,17 @@ class SettingsStore(private val context: Context) {
     }
 
     val favorites: Flow<Set<String>> = context.dataStore.data.map { it[Keys.favorites] ?: emptySet() }
+
+    val recent: Flow<List<String>> = context.dataStore.data.map { decodeRecent(it[Keys.recent]) }
+
+    /** Apunta un canal como visto: pasa a ser el primero de "Recientes". */
+    suspend fun addRecent(key: String) = context.dataStore.edit { p ->
+        val list = listOf(key) + decodeRecent(p[Keys.recent]).filterNot { it == key }
+        p[Keys.recent] = list.take(MAX_RECENT).joinToString("\n")
+    }
+
+    private fun decodeRecent(raw: String?): List<String> =
+        raw?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
 
     /** Añade una lista nueva y la deja activa. */
     suspend fun addPlaylist(playlist: SavedPlaylist) = context.dataStore.edit { p ->
@@ -86,5 +99,6 @@ class SettingsStore(private val context: Context) {
 
     companion object {
         const val LEGACY_ID = "legacy"
+        const val MAX_RECENT = 20
     }
 }

@@ -87,7 +87,7 @@ class ScreensTest {
 
         // Filtro por grupo
         rule.onAllNodesWithText("Deportes")[0].performClick()
-        rule.onNodeWithText("1 canales").assertExists()
+        rule.onNodeWithText("1 canal").assertExists()
         rule.onNodeWithText("Deportes Uno").assertExists()
         rule.onNodeWithText("Noticias 24").assertDoesNotExist()
 
@@ -102,5 +102,37 @@ class ScreensTest {
         rule.onNodeWithContentDescription("Quitar de favoritos").assertExists()
         rule.onNodeWithText("Cine Clásico").performClick()
         assertEquals("http://e.com/3", played?.url)
+    }
+
+    @Test fun repeatedUrlsAndAccentInsensitiveSearch() {
+        // Algunas listas repiten la misma URL en varios grupos: no debe romper la lista.
+        val dup = listOf(
+            Channel("Cine Clásico", "http://e.com/same", group = "Cine", number = 1),
+            Channel("Cine Clásico HD", "http://e.com/same", group = "Películas", number = 2),
+        )
+        var state by mutableStateOf(UiState(ready = true, channels = dup, groups = listOf(GROUP_ALL)))
+        rule.setContent {
+            ChannelsScreen(
+                state = state,
+                onSelectGroup = {}, onQuery = { state = state.copy(query = it) },
+                onPlay = {}, onToggleFavorite = {},
+                onRefresh = {}, onShowPlaylists = {}, onDismissError = {},
+            )
+        }
+        rule.onNodeWithText("2 canales").assertExists()
+        rule.onNodeWithText("Buscar canal").performTextInput("clasico hd")
+        rule.onNodeWithText("Cine Clásico HD").assertExists()
+        rule.onNodeWithText("1 canal").assertExists()
+    }
+
+    @Test fun emptyFavoritesShowsHint() {
+        val state = UiState(ready = true, channels = channels, selectedGroup = GROUP_FAVORITES)
+        rule.setContent {
+            ChannelsScreen(
+                state = state, onSelectGroup = {}, onQuery = {}, onPlay = {}, onToggleFavorite = {},
+                onRefresh = {}, onShowPlaylists = {}, onDismissError = {},
+            )
+        }
+        rule.onNodeWithText("Aún no tienes favoritos. Pulsa la estrella de un canal para añadirlo.").assertExists()
     }
 }

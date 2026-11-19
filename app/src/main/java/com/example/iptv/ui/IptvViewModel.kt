@@ -9,6 +9,8 @@ import com.example.iptv.data.PlaylistRepository
 import com.example.iptv.data.PlaylistSource
 import com.example.iptv.data.SavedPlaylist
 import com.example.iptv.data.SettingsStore
+import com.example.iptv.data.normalizeForSearch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,6 +24,10 @@ import java.util.UUID
 
 const val GROUP_ALL = "Todos"
 const val GROUP_FAVORITES = "★ Favoritos"
+const val GROUP_RECENT = "Recientes"
+
+/** Tiempo que se espera tras la última cifra antes de saltar al canal tecleado. */
+const val NUMBER_INPUT_DELAY_MS = 1_500L
 
 enum class Screen { Channels, Playlists, AddPlaylist }
 
@@ -37,21 +43,31 @@ data class UiState(
     val selectedGroup: String = GROUP_ALL,
     val query: String = "",
     val favorites: Set<String> = emptySet(),
+    /** Claves de los canales vistos hace poco, el más reciente primero. */
+    val recent: List<String> = emptyList(),
     val playing: Channel? = null,
+    /** Cifras tecleadas con el mando para saltar a un canal por número. */
+    val numberInput: String? = null,
 ) {
     val active: SavedPlaylist? get() = playlists.firstOrNull { it.id == activeId }
 
-    val visibleChannels: List<Channel>
-        get() = channels.asSequence()
-            .filter {
-                when (selectedGroup) {
-                    GROUP_ALL -> true
-                    GROUP_FAVORITES -> it.key in favorites
-                    else -> it.group == selectedGroup
-                }
+    /**
+     * Canales del grupo elegido que coinciden con la búsqueda (sin distinguir tildes ni mayúsculas).
+     * Se calcula una sola vez por estado: con listas de miles de canales no se repite en cada pintado.
+     */
+    val visibleChannels: List<Channel> by lazy {
+        val base = when (selectedGroup) {
+            GROUP_ALL -> channels
+            GROUP_FAVORITES -> channels.filter { it.key in favorites }
+            GROUP_RECENT -> {
+                val byKey = channels.associateBy { it.key }
+                recent.mapNotNull { byKey[it] }
             }
-            .filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
-            .toList()
+            else -> channels.filter { it.group == selectedGroup }
+        }
+        val q = normalizeForSearch(query)
+        if (q.isEmpty()) base else base.filter { q in it.searchName }
+    }
 }
 
 class IptvViewModel(app: Application) : AndroidViewModel(app) {
@@ -60,10 +76,13 @@ class IptvViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = PlaylistRepository(app)
     private val local = MutableStateFlow(UiState())
     private var loadJob: Job? = null
+    private var numberJob: Job? = null
+    /** Canal que se veía antes del actual (tecla "último canal" del mando). */
+    private var previous: Channel? = null
 
     val state: StateFlow<UiState> =
-        combine(local, settings.playlists, settings.activeId, settings.favorites) { s, lists, active, favs ->
-            s.copy(playlists = lists, activeId = active, favorites = favs)
+        combine(local, settings.playlists, settings.activeId, settings.favorites, settings.recent) { s, lists, active, favs, recent ->
+            s.copy(playlists = lists, activeId = active, favorites = favs, recent = recent)
         }.stateIn(viewModelScope, SharingStarted.Eagerly, UiState())
 
     init {
@@ -162,27 +181,67 @@ class IptvViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissError() = local.update { it.copy(error = null) }
     fun toggleFavorite(channel: Channel) = viewModelScope.launch { settings.toggleFavorite(channel.key) }
 
-    fun play(channel: Channel) = local.update { it.copy(playing = channel) }
-    fun stop() = local.update { it.copy(playing = null) }
+    fun play(channel: Channel) {
+        // "local" tiene siempre lo último (state se combina con DataStore y puede ir un paso por detrás).
+        val current = local.value.playing
+        if (current != null && current.key != channel.key) previous = current
+        local.update { it.copy(playing = channel) }
+        viewModelScope.launch { settings.addRecent(channel.key) }
+    }
+
+    fun stop() {
+        numberJob?.cancel()
+        local.update { it.copy(playing = null, numberInput = null) }
+    }
 
     /** Cambia de canal dentro de la lista visible (+1 siguiente, -1 anterior). */
     fun zap(delta: Int) {
         val s = state.value
-        val list = s.visibleChannels.ifEmpty { s.channels }
-        val current = s.playing ?: return
+        val current = local.value.playing ?: return
+        // Si el canal actual no está en la lista filtrada (p. ej. se buscó otra cosa), se usa la lista entera.
+        val list = s.visibleChannels.takeIf { l -> l.any { it.key == current.key } } ?: s.channels
         if (list.isEmpty()) return
         val idx = list.indexOfFirst { it.key == current.key }.coerceAtLeast(0)
-        val next = list[(idx + delta).mod(list.size)]
-        local.update { it.copy(playing = next) }
+        play(list[(idx + delta).mod(list.size)])
+    }
+
+    /** Vuelve al canal que se veía antes (tecla "último canal" del mando). */
+    fun playPrevious() {
+        val p = previous ?: return
+        if (local.value.playing != null) play(p)
+    }
+
+    /**
+     * Cifra pulsada en el mando mientras se ve un canal: tras una breve pausa (o con 4 cifras)
+     * salta al canal con ese número.
+     */
+    fun typeDigit(digit: Int) {
+        if (local.value.playing == null || digit !in 0..9) return
+        val typed = ((local.value.numberInput ?: "") + digit).trimStart('0').take(MAX_NUMBER_DIGITS)
+        if (typed.isEmpty()) return
+        local.update { it.copy(numberInput = typed) }
+        numberJob?.cancel()
+        numberJob = viewModelScope.launch {
+            if (typed.length < MAX_NUMBER_DIGITS) delay(NUMBER_INPUT_DELAY_MS)
+            commitNumber()
+        }
+    }
+
+    private fun commitNumber() {
+        val s = local.value
+        val n = s.numberInput?.toIntOrNull()
+        local.update { it.copy(numberInput = null) }
+        val target = n?.let { num -> s.channels.firstOrNull { it.number == num } } ?: return
+        if (s.playing != null) play(target)
     }
 
     private fun setChannels(channels: List<Channel>, resetFilters: Boolean = false) {
         val groups = channels.mapNotNull { it.group }.distinct()
         local.update {
-            val keep = !resetFilters && (it.selectedGroup in groups || it.selectedGroup == GROUP_FAVORITES)
+            val keep = !resetFilters && (it.selectedGroup in groups || it.selectedGroup in RESERVED_GROUPS)
             it.copy(
                 channels = channels,
-                groups = listOf(GROUP_ALL, GROUP_FAVORITES) + groups,
+                groups = listOf(GROUP_ALL, GROUP_FAVORITES, GROUP_RECENT) + groups.filterNot { g -> g in RESERVED_GROUPS },
                 selectedGroup = if (keep) it.selectedGroup else GROUP_ALL,
                 query = if (resetFilters) "" else it.query,
             )
@@ -190,6 +249,9 @@ class IptvViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
+        private const val MAX_NUMBER_DIGITS = 4
+        private val RESERVED_GROUPS = setOf(GROUP_ALL, GROUP_FAVORITES, GROUP_RECENT)
+
         /** Nombre por defecto: el dominio de la URL o "Lista N". */
         fun defaultName(source: PlaylistSource, existing: Int): String {
             val host = when (source) {

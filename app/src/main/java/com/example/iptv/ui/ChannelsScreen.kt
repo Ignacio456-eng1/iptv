@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -117,17 +118,35 @@ fun ChannelsScreen(
         }
 
         Text(
-            "${channels.size} canales",
+            if (channels.size == 1) "1 canal" else "${channels.size} canales",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
 
+        if (channels.isEmpty() && !state.loading) {
+            val hint = when {
+                state.query.isNotBlank() -> "Ningún canal coincide con \"${state.query}\"."
+                state.selectedGroup == GROUP_FAVORITES -> "Aún no tienes favoritos. Pulsa la estrella de un canal para añadirlo."
+                state.selectedGroup == GROUP_RECENT -> "Aquí aparecerán los últimos canales que veas."
+                else -> null
+            }
+            hint?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+            }
+        }
+
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            items(channels, key = { it.key }) { ch ->
+            // Hay listas que repiten la misma URL en varios grupos: el número evita claves duplicadas.
+            items(channels, key = { "${it.number}|${it.key}" }) { ch ->
                 ChannelRow(
                     channel = ch,
                     favorite = ch.key in state.favorites,
@@ -170,6 +189,15 @@ private fun ChannelRow(
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (channel.number > 0) {
+            Text(
+                channel.number.toString(),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(40.dp).padding(end = 10.dp),
+            )
+        }
         Box(
             Modifier.size(width = 64.dp, height = 40.dp).clip(RoundedCornerShape(6.dp))
                 .background(Color(0xFF2A2A33)),

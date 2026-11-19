@@ -54,4 +54,18 @@ class M3uParserTest {
         val url = PlaylistSource.Xtream("example.com:8080/", "user", "p&ss").playlistUrl()
         assertEquals("http://example.com:8080/get.php?username=user&password=p%26ss&type=m3u_plus&output=ts", url)
     }
+
+    @Test
+    fun numbersChannelsInOrder() {
+        val text = """
+            #EXTM3U
+            #EXTINF:-1,Uno
+            http://example.com/1
+            #EXTINF:-1,Dos
+            http://example.com/2
+            #EXTINF:-1,Tres
+            http://example.com/1
+        """.trimIndent()
+        assertEquals(listOf(1, 2, 3), M3uParser.parse(text).map { it.number })
+    }
 }

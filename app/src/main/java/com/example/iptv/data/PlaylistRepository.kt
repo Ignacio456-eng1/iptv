@@ -53,6 +53,6 @@ class PlaylistRepository(context: Context) {
     fun clearCache(id: String) { cacheFile(id).delete() }
 
     companion object {
-        const val USER_AGENT = "IptvPlayer/0.2 (Android)"
+        const val USER_AGENT = "IptvPlayer/0.3 (Android)"
     }
 }
