@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -30,6 +31,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
@@ -37,17 +39,41 @@ import com.example.iptv.data.Channel
 import com.example.iptv.data.PlaylistRepository
 import kotlinx.coroutines.delay
 
+/** Reintentos automáticos cuando se corta la conexión de un canal. */
+private const val MAX_RETRIES = 3
+
+/**
+ * Cortes de red o fallos momentáneos del servidor (5xx, demasiadas conexiones): vale la pena reintentar.
+ * Un 404/403 o un formato no soportado no se arreglan solos, así que se muestra el error enseguida.
+ */
+@OptIn(UnstableApi::class)
+private fun isTransientError(e: PlaybackException): Boolean = when (e.errorCode) {
+    PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> true
+    PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
+        val code = (e.cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode ?: 0
+        code >= 500 || code == 429
+    }
+    else -> false
+}
+
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
     channel: Channel,
     onPrev: () -> Unit,
     onNext: () -> Unit,
+    numberInput: String? = null,
+    numberTarget: String? = null,
 ) {
     val context = LocalContext.current
     var buffering by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var showName by remember { mutableStateOf(true) }
+    /** Reintentos hechos para el canal actual y petición de reintento pendiente. */
+    var attempts by remember { mutableIntStateOf(0) }
+    var retryRequest by remember { mutableIntStateOf(0) }
 
     val httpFactory = remember {
         DefaultHttpDataSource.Factory()
@@ -85,6 +111,8 @@ fun PlayerScreen(
         error = null
         buffering = true
         showName = true
+        attempts = 0
+        retryRequest = 0
         val headers = channel.headers.toMutableMap()
         headers.remove("User-Agent")?.let { httpFactory.setUserAgent(it) }
             ?: httpFactory.setUserAgent(PlaylistRepository.USER_AGENT)
@@ -95,14 +123,41 @@ fun PlayerScreen(
         showName = false
     }
 
+    // Reconexión automática: espera un poco más en cada intento y vuelve a preparar el stream.
+    LaunchedEffect(retryRequest) {
+        if (retryRequest == 0) return@LaunchedEffect
+        delay(2_000L * attempts)
+        player.prepare()
+    }
+
     DisposableEffect(Unit) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 buffering = state == Player.STATE_BUFFERING
+                if (state == Player.STATE_READY) {
+                    attempts = 0
+                    error = null
+                }
             }
             override fun onPlayerError(e: PlaybackException) {
-                buffering = false
-                error = "No se pudo reproducir el canal (${e.errorCodeName})"
+                when {
+                    // En directo, si nos quedamos atrás de la ventana emitida se salta al momento actual.
+                    e.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW -> {
+                        player.seekToDefaultPosition()
+                        player.prepare()
+                    }
+                    isTransientError(e) && attempts < MAX_RETRIES -> {
+                        attempts += 1
+                        buffering = true
+                        error = "Se cortó la señal. Reconectando ($attempts/$MAX_RETRIES)…"
+                        retryRequest += 1
+                    }
+                    else -> {
+                        buffering = false
+                        error = "No se pudo reproducir el canal (${e.errorCodeName}). " +
+                            "Prueba otro canal con CH+/CH- o vuelve atrás."
+                    }
+                }
             }
         }
         player.addListener(listener)
@@ -131,8 +186,21 @@ fun PlayerScreen(
             modifier = Modifier.fillMaxSize(),
         )
 
-        if (buffering && error == null) {
+        if (buffering && (error == null || attempts > 0)) {
             CircularProgressIndicator(Modifier.align(Alignment.Center))
+        }
+
+        // Número que se está tecleando con el mando.
+        if (numberInput != null) {
+            Column(
+                Modifier.align(Alignment.TopEnd).padding(24.dp)
+                    .background(Color(0xAA000000), MaterialTheme.shapes.medium)
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.End,
+            ) {
+                Text(numberInput, style = MaterialTheme.typography.displayMedium, color = Color.White)
+                numberTarget?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFC8CDD6)) }
+            }
         }
 
         if (showName || error != null) {
@@ -141,7 +209,10 @@ fun PlayerScreen(
                     .background(Color(0xAA000000), MaterialTheme.shapes.medium)
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             ) {
-                Text(channel.name, style = MaterialTheme.typography.titleLarge, color = Color.White)
+                Text(
+                    if (channel.number > 0) "${channel.number}  ${channel.name}" else channel.name,
+                    style = MaterialTheme.typography.titleLarge, color = Color.White,
+                )
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         }

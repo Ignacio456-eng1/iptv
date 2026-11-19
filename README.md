@@ -8,12 +8,17 @@ Reproductor IPTV para Android y Android TV. **No incluye canales**: el usuario a
 ## Qué hace
 - Carga listas **M3U / M3U8** por URL o con credenciales **Xtream Codes** (servidor, usuario, contraseña).
 - Guarda **varias listas** con nombre: en "Mis listas" puedes cambiar de una a otra, renombrarlas y borrarlas.
-- Lista de canales con logos, **grupos**, **búsqueda** y **favoritos**.
+- Lista de canales numerados con logos, **grupos**, **búsqueda** (sin importar tildes ni mayúsculas), **favoritos** y **recientes** (los últimos 20 canales vistos).
 - Reproducción con **Media3 / ExoPlayer**: HLS, DASH, MPEG‑TS y progresivo.
 - Respeta `#EXTVLCOPT:http-user-agent`, `http-referrer` y cabeceras estilo Kodi (`url|User-Agent=…`).
 - Android TV: aparece en el launcher de la tele, navegación con mando (D‑pad) y **CH+/CH‑** para cambiar de canal.
   En el reproductor, los botones anterior/siguiente también cambian de canal.
+  Con las **cifras del mando** se salta a un canal por su número, y la tecla **último canal** vuelve al anterior.
+- Si se corta la señal, el reproductor **reconecta solo** (hasta 3 intentos) y en directo vuelve al momento actual si se queda atrás.
 - Guarda una copia de cada lista para arrancar rápido.
+- Botón **Seguir viendo** con el último canal y, en el móvil, **ventana flotante** (imagen en imagen) al salir con el botón de inicio.
+- **Listas incluidas (privado):** si existe `app/src/main/assets/presets.json` (mismo formato que las listas guardadas, ignorado por git),
+  esas listas aparecen solas al abrir la app. Nunca subas ese archivo: lleva usuarios y contraseñas.
 - El APK de pruebas se firma siempre con la misma clave (`app/iptv-debug.keystore`), así que las versiones nuevas se instalan encima.
 
 ## Stack

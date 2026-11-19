@@ -8,3 +8,4 @@ captures/
 windows/**/bin/
 windows/**/obj/
 windows/out/
+app/src/main/assets/presets.json

@@ -17,6 +17,12 @@ data class SavedPlaylist(
         }
 }
 
+/** Listas incluidas en la app (assets/presets.json, mismo formato que PlaylistCodec). Su id lleva "preset-" delante. */
+object Presets {
+    fun parse(json: String?): List<SavedPlaylist> =
+        PlaylistCodec.decode(json).map { it.copy(id = SettingsStore.PRESET_PREFIX + it.id) }
+}
+
 /** Conversión a/desde JSON para guardarlas en DataStore. */
 internal object PlaylistCodec {
 

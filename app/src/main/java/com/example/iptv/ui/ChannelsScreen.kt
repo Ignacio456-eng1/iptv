@@ -22,12 +22,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -86,6 +89,17 @@ fun ChannelsScreen(
             }
         }
 
+        state.resumeChannel?.let { last ->
+            Button(
+                onClick = { onPlay(last) },
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+            ) {
+                Icon(Icons.Default.PlayArrow, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Seguir viendo ${last.name}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -117,17 +131,35 @@ fun ChannelsScreen(
         }
 
         Text(
-            "${channels.size} canales",
+            if (channels.size == 1) "1 canal" else "${channels.size} canales",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
 
+        if (channels.isEmpty() && !state.loading) {
+            val hint = when {
+                state.query.isNotBlank() -> "Ningún canal coincide con \"${state.query}\"."
+                state.selectedGroup == GROUP_FAVORITES -> "Aún no tienes favoritos. Pulsa la estrella de un canal para añadirlo."
+                state.selectedGroup == GROUP_RECENT -> "Aquí aparecerán los últimos canales que veas."
+                else -> null
+            }
+            hint?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+            }
+        }
+
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            items(channels, key = { it.key }) { ch ->
+            // Hay listas que repiten la misma URL en varios grupos: el número evita claves duplicadas.
+            items(channels, key = { "${it.number}|${it.key}" }) { ch ->
                 ChannelRow(
                     channel = ch,
                     favorite = ch.key in state.favorites,
@@ -170,6 +202,15 @@ private fun ChannelRow(
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (channel.number > 0) {
+            Text(
+                channel.number.toString(),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(40.dp).padding(end = 10.dp),
+            )
+        }
         Box(
             Modifier.size(width = 64.dp, height = 40.dp).clip(RoundedCornerShape(6.dp))
                 .background(Color(0xFF2A2A33)),

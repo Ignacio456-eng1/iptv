@@ -59,6 +59,7 @@ object M3uParser {
                         group = (attrs["group-title"] ?: group)?.takeIf { it.isNotBlank() },
                         tvgId = attrs["tvg-id"]?.takeIf { it.isNotBlank() },
                         headers = headers + urlHeaders,
+                        number = channels.size + 1,
                     )
                     reset()
                 }
