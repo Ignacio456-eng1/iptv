@@ -135,4 +135,17 @@ class ScreensTest {
         }
         rule.onNodeWithText("Aún no tienes favoritos. Pulsa la estrella de un canal para añadirlo.").assertExists()
     }
+
+    @Test fun resumeButtonPlaysLastChannel() {
+        val state = UiState(ready = true, channels = channels, recent = listOf("http://e.com/2", "http://e.com/1"))
+        var played: Channel? = null
+        rule.setContent {
+            ChannelsScreen(
+                state = state, onSelectGroup = {}, onQuery = {}, onPlay = { played = it }, onToggleFavorite = {},
+                onRefresh = {}, onShowPlaylists = {}, onDismissError = {},
+            )
+        }
+        rule.onNodeWithText("Seguir viendo Deportes Uno").performClick()
+        assertEquals("http://e.com/2", played?.url)
+    }
 }

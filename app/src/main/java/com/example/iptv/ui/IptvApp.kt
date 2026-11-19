@@ -40,6 +40,7 @@ fun IptvApp(vm: IptvViewModel) {
                         onPrev = { vm.zap(-1) },
                         onNext = { vm.zap(+1) },
                         numberInput = state.numberInput,
+                        numberTarget = state.numberInput?.let { state.numberTarget?.name ?: "No existe ese canal" },
                     )
                 }
                 state.screen == Screen.AddPlaylist || state.playlists.isEmpty() -> {

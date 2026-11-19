@@ -22,12 +22,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -84,6 +86,17 @@ fun ChannelsScreen(
                 Icon(Icons.AutoMirrored.Filled.List, null)
                 Spacer(Modifier.width(6.dp))
                 Text("Mis listas (${state.playlists.size})")
+            }
+        }
+
+        state.resumeChannel?.let { last ->
+            Button(
+                onClick = { onPlay(last) },
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+            ) {
+                Icon(Icons.Default.PlayArrow, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Seguir viendo ${last.name}", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
 

@@ -21,6 +21,8 @@ class SettingsStore(private val context: Context) {
         val favorites = stringSetPreferencesKey("favorites")
         /** Canales vistos hace poco, el más reciente primero, separados por saltos de línea. */
         val recent = stringPreferencesKey("recent_channels")
+        /** Listas incluidas en la app que el usuario ha borrado (no se vuelven a añadir). */
+        val dismissedPresets = stringSetPreferencesKey("dismissed_presets")
 
         // Versión 0.1: solo había una lista. Se migra automáticamente.
         val legacyType = stringPreferencesKey("source_type")
@@ -61,7 +63,22 @@ class SettingsStore(private val context: Context) {
         writePlaylists(p, readPlaylists(p).map { if (it.id == id) it.copy(name = name) else it })
     }
 
+    /**
+     * Añade las listas incluidas en la app (assets/presets.json) que aún no estén y que el usuario no haya borrado.
+     * Si no había ninguna lista activa, la primera pasa a serlo.
+     */
+    suspend fun addPresets(presets: List<SavedPlaylist>) = context.dataStore.edit { p ->
+        val current = readPlaylists(p)
+        val dismissed = p[Keys.dismissedPresets] ?: emptySet()
+        val missing = presets.filter { pr -> pr.id !in dismissed && current.none { it.id == pr.id } }
+        if (missing.isEmpty()) return@edit
+        val all = current + missing
+        writePlaylists(p, all)
+        if (p[Keys.activeId]?.let { id -> all.any { it.id == id } } != true) p[Keys.activeId] = all.first().id
+    }
+
     suspend fun removePlaylist(id: String) = context.dataStore.edit { p ->
+        if (id.startsWith(PRESET_PREFIX)) p[Keys.dismissedPresets] = (p[Keys.dismissedPresets] ?: emptySet()) + id
         val remaining = readPlaylists(p).filterNot { it.id == id }
         writePlaylists(p, remaining)
         if (p[Keys.activeId] == id) {
@@ -100,5 +117,6 @@ class SettingsStore(private val context: Context) {
     companion object {
         const val LEGACY_ID = "legacy"
         const val MAX_RECENT = 20
+        const val PRESET_PREFIX = "preset-"
     }
 }

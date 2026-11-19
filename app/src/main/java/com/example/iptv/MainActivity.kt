@@ -1,6 +1,10 @@
 package com.example.iptv
 
+import android.app.PictureInPictureParams
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.util.Rational
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -15,6 +19,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { IptvApp(viewModel) }
+    }
+
+    /** En el móvil, al salir con el botón de inicio mientras se ve un canal, sigue en una ventana flotante. */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (viewModel.state.value.playing == null) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
+        runCatching {
+            enterPictureInPictureMode(
+                PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
+            )
+        }
     }
 
     /**

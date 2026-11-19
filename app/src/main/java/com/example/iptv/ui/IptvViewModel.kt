@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.iptv.data.Channel
 import com.example.iptv.data.PlaylistRepository
 import com.example.iptv.data.PlaylistSource
+import com.example.iptv.data.Presets
 import com.example.iptv.data.SavedPlaylist
 import com.example.iptv.data.SettingsStore
 import com.example.iptv.data.normalizeForSearch
@@ -51,6 +52,16 @@ data class UiState(
 ) {
     val active: SavedPlaylist? get() = playlists.firstOrNull { it.id == activeId }
 
+    /** Último canal visto, si está en la lista actual: para el botón "Seguir viendo". */
+    val resumeChannel: Channel? by lazy {
+        recent.firstOrNull()?.let { key -> channels.firstOrNull { it.key == key } }
+    }
+
+    /** Canal que corresponde al número que se está tecleando (para mostrar su nombre). */
+    val numberTarget: Channel? by lazy {
+        numberInput?.toIntOrNull()?.let { n -> channels.firstOrNull { it.number == n } }
+    }
+
     /**
      * Canales del grupo elegido que coinciden con la búsqueda (sin distinguir tildes ni mayúsculas).
      * Se calcula una sola vez por estado: con listas de miles de canales no se repite en cada pintado.
@@ -87,6 +98,9 @@ class IptvViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         viewModelScope.launch {
+            // Listas incluidas en la app (solo en compilaciones privadas: assets/presets.json no está en el repositorio).
+            val presets = Presets.parse(runCatching { app.assets.open(PRESETS_ASSET).bufferedReader().use { it.readText() } }.getOrNull())
+            if (presets.isNotEmpty()) settings.addPresets(presets)
             val lists = settings.playlists.first()
             val activeId = settings.activeId.first()
             val active = lists.firstOrNull { it.id == activeId }
@@ -250,6 +264,7 @@ class IptvViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val MAX_NUMBER_DIGITS = 4
+        const val PRESETS_ASSET = "presets.json"
         private val RESERVED_GROUPS = setOf(GROUP_ALL, GROUP_FAVORITES, GROUP_RECENT)
 
         /** Nombre por defecto: el dominio de la URL o "Lista N". */

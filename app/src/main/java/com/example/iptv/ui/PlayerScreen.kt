@@ -65,6 +65,7 @@ fun PlayerScreen(
     onPrev: () -> Unit,
     onNext: () -> Unit,
     numberInput: String? = null,
+    numberTarget: String? = null,
 ) {
     val context = LocalContext.current
     var buffering by remember { mutableStateOf(true) }
@@ -191,14 +192,15 @@ fun PlayerScreen(
 
         // Número que se está tecleando con el mando.
         if (numberInput != null) {
-            Text(
-                numberInput,
-                style = MaterialTheme.typography.displayMedium,
-                color = Color.White,
-                modifier = Modifier.align(Alignment.TopEnd).padding(24.dp)
+            Column(
+                Modifier.align(Alignment.TopEnd).padding(24.dp)
                     .background(Color(0xAA000000), MaterialTheme.shapes.medium)
                     .padding(horizontal = 20.dp, vertical = 8.dp),
-            )
+                horizontalAlignment = Alignment.End,
+            ) {
+                Text(numberInput, style = MaterialTheme.typography.displayMedium, color = Color.White)
+                numberTarget?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFC8CDD6)) }
+            }
         }
 
         if (showName || error != null) {

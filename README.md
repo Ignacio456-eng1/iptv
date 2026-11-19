@@ -16,6 +16,9 @@ Reproductor IPTV para Android y Android TV. **No incluye canales**: el usuario a
   Con las **cifras del mando** se salta a un canal por su número, y la tecla **último canal** vuelve al anterior.
 - Si se corta la señal, el reproductor **reconecta solo** (hasta 3 intentos) y en directo vuelve al momento actual si se queda atrás.
 - Guarda una copia de cada lista para arrancar rápido.
+- Botón **Seguir viendo** con el último canal y, en el móvil, **ventana flotante** (imagen en imagen) al salir con el botón de inicio.
+- **Listas incluidas (privado):** si existe `app/src/main/assets/presets.json` (mismo formato que las listas guardadas, ignorado por git),
+  esas listas aparecen solas al abrir la app. Nunca subas ese archivo: lleva usuarios y contraseñas.
 - El APK de pruebas se firma siempre con la misma clave (`app/iptv-debug.keystore`), así que las versiones nuevas se instalan encima.
 
 ## Stack

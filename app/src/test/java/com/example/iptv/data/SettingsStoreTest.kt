@@ -59,4 +59,25 @@ class SettingsStoreTest {
         assertEquals(SettingsStore.MAX_RECENT, recent.size)
         assertEquals("http://e.com/x29", recent.first())
     }
+
+    @Test fun presetsAddedOnceAndNotRestoredAfterDelete() = runTest {
+        val store = SettingsStore(ApplicationProvider.getApplicationContext())
+        store.playlists.first().forEach { store.removePlaylist(it.id) }
+        val json = """[{"id":"43","name":"43","type":"xtream","server":"http://srv:8080","username":"u","password":"p"},
+            {"id":"m","name":"M3U","type":"m3u","url":"http://e.com/l.m3u"}]"""
+        val presets = Presets.parse(json)
+        assertEquals(listOf("preset-43", "preset-m"), presets.map { it.id })
+
+        store.addPresets(presets)
+        assertEquals(listOf("43", "M3U"), store.playlists.first().map { it.name })
+        assertEquals("preset-43", store.activeId.first())
+
+        store.addPresets(presets) // no se duplican
+        assertEquals(2, store.playlists.first().size)
+
+        store.removePlaylist("preset-43")
+        store.addPresets(presets) // la borrada no vuelve
+        assertEquals(listOf("preset-m"), store.playlists.first().map { it.id })
+        store.removePlaylist("preset-m")
+    }
 }
